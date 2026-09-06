@@ -2,28 +2,33 @@
 
 from __future__ import annotations
 
+import socket
+
 import psutil
 
 from agent.permissions import tier1
+
+# psutil.SOCK_STREAM is POSIX-only (missing on Windows — found in field
+# testing); socket constants have the same values and exist everywhere.
+_LISTEN_STATUS = getattr(psutil, "CONN_LISTEN", "LISTEN")
 
 
 @tier1
 def get_open_ports() -> str:
     """All listening internet ports: port, protocol, pid, process name.
 
-    Note: on Windows, resolving pid->process name for other users'
-    processes may require the agent to run as Administrator.
+    Note: resolving pid->process name for other users' processes may
+    require the agent to run as Administrator.
     """
     seen: dict[tuple[int, str], tuple[int, str]] = {}
     for conn in psutil.net_connections(kind="inet"):
         if conn.laddr is None:
             continue
-        is_listening = (
-            conn.type == psutil.SOCK_STREAM and conn.status == psutil.CONN_LISTEN
-        ) or conn.type == psutil.SOCK_DGRAM
+        is_stream = conn.type == socket.SOCK_STREAM
+        is_listening = (is_stream and conn.status == _LISTEN_STATUS) or conn.type == socket.SOCK_DGRAM
         if not is_listening:
             continue
-        proto = "tcp" if conn.type == psutil.SOCK_STREAM else "udp"
+        proto = "tcp" if is_stream else "udp"
         key = (conn.laddr.port, proto)
         if key in seen:
             continue

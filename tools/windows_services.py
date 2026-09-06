@@ -72,19 +72,29 @@ def list_services(name_filter: str = "") -> str:
     """List Windows services (optionally filtered by substring): short name, display name, status, start type."""
     needle = name_filter.lower().strip()
     rows = []
+    skipped = 0
     try:
         iterator = psutil.win_service_iter()
     except psutil.Error as exc:
         return f"ERROR: cannot enumerate services: {exc}"
     for svc in iterator:
-        d = svc.as_dict()
+        try:
+            d = svc.as_dict()
+        except (psutil.Error, OSError) as exc:
+            # broken/stale service registry entries can't be queried
+            # (WinError 2 from QueryServiceConfig2W) — skip, don't crash
+            skipped += 1
+            continue
         if needle and needle not in d["name"].lower() and needle not in (d["display_name"] or "").lower():
             continue
         rows.append(f"{d['name']}  [{d['display_name']}]  status={d['status']}  start={d['start_type']}")
         if len(rows) >= 60:
             rows.append("... (truncated at 60; use name_filter to narrow)")
             break
-    return "\n".join(rows) if rows else f"no services matching '{name_filter}'"
+    out = "\n".join(rows) if rows else f"no services matching '{name_filter}'"
+    if skipped:
+        out += f"\n({skipped} unqueryable service entries skipped)"
+    return out
 
 
 @tier1
