@@ -1,0 +1,19 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# secrets & local config
+.env
+
+# agent artifacts
+logs/
+*.log
+
+# tooling
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
