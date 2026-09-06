@@ -98,7 +98,10 @@ def tier2(func: Callable[..., str]) -> Callable[..., str]:
     def wrapper(*args: Any, **kwargs: Any) -> str:
         check: Callable[..., str | None] | None = getattr(wrapper, "allowlist_check", None)
         if check is not None:
-            error = check(*args, **kwargs)
+            try:
+                error = check(*args, **kwargs)
+            except Exception as exc:  # noqa: BLE001 — checks must never crash the loop
+                error = f"allowlist check failed: {exc}"
             if error:
                 audit.get().record(
                     tool=func.__name__, tier="tier2", args=_fmt_args(args, kwargs),
