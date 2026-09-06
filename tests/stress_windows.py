@@ -42,7 +42,9 @@ results: list[tuple[str, str, str]] = []
 
 def record(name: str, status: str, detail: str) -> None:
     results.append((name, status, detail))
-    mark = {"PASS": "✅", "FAIL": "❌", "WARN": "⚠️ ", "SKIP": "⏭️ "}.get(status, "  ")
+    # ASCII markers only: Windows consoles/SSH pipes may run cp1252,
+    # where unicode symbols crash the print (found in field testing).
+    mark = {"PASS": "[+] ", "FAIL": "[!!]", "WARN": "[~] ", "SKIP": "[--]"}.get(status, "    ")
     print(f"{mark} [{status}] {name}")
     if status != "PASS":
         print(f"      {detail[:160]}")
@@ -70,10 +72,15 @@ def run_tool(name: str, fn, *args, expect_error: str | None = None, allow_error:
 
 
 def main() -> int:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    except (AttributeError, ValueError):
+        pass
     get_settings.cache_clear()
     audit.configure(get_settings().audit_dir)
     home = Path.home()
-    print(f"=== Windows Ops Agent — stress run ===")
+    print("=== Windows Ops Agent stress run ===")
     print(f"platform: {sys.platform} | user: {home} | app_dir: {get_settings().app_dir}")
     print(f"allowlists: services={get_settings().allowed_services} kill={get_settings().allowed_kill_names}\n")
 

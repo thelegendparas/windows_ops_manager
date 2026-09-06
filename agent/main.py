@@ -80,6 +80,15 @@ def run_interactive(agent) -> int:
 
 
 def main() -> int:
+    # Windows consoles default to a legacy code page (cp1252); model output
+    # can contain any unicode. Force UTF-8 with replacement so printing can
+    # never crash the REPL or headless output.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
+            pass
+
     parser = argparse.ArgumentParser(
         prog="windows-agent",
         description="Operations agent for this host (PydanticAI + OpenRouter).",
