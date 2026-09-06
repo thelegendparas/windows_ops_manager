@@ -5,6 +5,68 @@ You SSH in, ask it questions — it inspects the machine, explains what's
 happening, and performs approved actions. It also runs headlessly for
 scheduled health checks.
 
+## Capabilities at a glance
+
+| Capability | What it means in practice |
+|---|---|
+| 🔍 Diagnose problems | "Why is my bot down?" → walks process → service → logs → ports → dependencies before touching anything |
+| 📊 System stats | CPU (per-core), RAM/swap, disk per drive, uptime, top processes by CPU/RAM |
+| 🪟 Windows services | List any service, get detailed status, start/stop/restart **your allowlisted** ones |
+| 📜 Event log | Recent ERROR/WARNING events from the Windows Application log |
+| 📂 Files & logs | List dirs, read files, tail logs, regex-search logs — with secrets (.env, keys, `.ssh`) always blocked |
+| 🌐 Networking | Every listening port with pid + process name |
+| 🧮 Processes | Find by name, top consumers, kill **allowlisted** processes only |
+| 🔀 Git & deploy | Branch status, recent commits, diff, `git pull --ff-only` (gated) |
+| ⏰ Scheduled health checks | Headless `-p` mode for Task Scheduler: "report only anomalies" |
+| 🧾 Full audit trail | Every tool call logged to JSONL — including rejections and approvals |
+| 🔁 Model-agnostic | OpenRouter behind the model layer: GLM today, any model tomorrow via `.env` |
+| 🍎 Mac-dev friendly | Runs on the Mac for development; Windows-only tools auto-register only on Windows |
+
+**What it can never do (by design):** delete files, drop databases, edit
+firewall/users, disable security software, or run arbitrary shell. Those
+aren't prompt-level rules — **the tools simply don't exist**, so there is
+nothing to bypass.
+
+## Tool inventory (what the agent actually has access to)
+
+### Tier 1 — autonomous, read-only (runs immediately)
+
+| Tool | Platform | Does |
+|---|---|---|
+| `get_system_info` | all | Hostname, OS, CPU cores, total RAM, boot time, uptime |
+| `get_cpu_usage` | all | CPU % overall + per-core (1s sample) |
+| `get_memory_usage` | all | RAM used/total/available %, swap usage |
+| `get_disk_usage` | all | Used/total/free per local drive + which drive holds APP_DIR |
+| `get_top_processes` | all | Top processes by CPU (RAM tiebreak), ~0.7s sample |
+| `find_processes` | all | Find processes by name substring: pid, RAM, cmdline |
+| `get_open_ports` | all | All listening TCP/UDP ports with pid + process name |
+| `list_dir` | all | Directory listing (dirs marked `/`, sizes shown) |
+| `read_file` | all | Read first N bytes of a text file (secrets blocked, truncated) |
+| `tail_log` | all | Last N lines of a log (reads max final 4MB of huge files) |
+| `search_log` | all | Regex search over the last N lines, returns matches + line numbers |
+| `get_git_status` | all | Branch + working-tree status of APP_DIR |
+| `get_recent_commits` | all | Commit log, one line per commit |
+| `get_git_diff` | all | Diffstat + diff of uncommitted changes |
+| `list_services` | Windows | List services (filterable): name, display name, status, start type |
+| `get_service_status` | Windows | One service in detail: status, pid, start type, binary path |
+| `get_recent_event_log_errors` | Windows | Application event log ERROR/WARNING entries (last N hours) |
+
+### Tier 2 — gated, mutating (proposal → your approval → execution)
+
+| Tool | Platform | Does | Allowlist |
+|---|---|---|---|
+| `restart_service` | Windows | Stop, wait, start a service | `ALLOWED_SERVICES` |
+| `start_service` | Windows | Start a service | `ALLOWED_SERVICES` |
+| `stop_service` | Windows | Stop a service | `ALLOWED_SERVICES` |
+| `kill_process` | all | Terminate by pid (never system pids, never itself) | `ALLOWED_KILL_NAMES` |
+| `git_pull` | all | `git pull --ff-only` on APP_DIR, reports new HEAD | — |
+| `confirm_action` | all | **The gate itself**: executes a proposed tier 2 action by token | — |
+
+### Tier 3 — no tools exist for these
+
+Deleting files, dropping DBs, firewall/user/SSH changes, disabling security
+software, arbitrary shell access. Not registered, not implemented, not reachable.
+
 ```
         YOUR MACHINE (Mac / SSH / future: chat bot / VS Code)
                             │
